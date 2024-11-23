@@ -12,43 +12,57 @@
 <body>
     <div class="container">
         <div class="row">
-            <div class="col-md-5">
+            <div class="col-md-6">
                 <div class="row">
                     <div class="row">&nbsp;</div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-5">
-                        <input type="file" id="upload" accept="image/*">
+                <div class="row mb-3">
+                    <div class="col-sm-6">
+                        <input type="file" id="upload" accept="image/*" class="w-100">
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted">Immagine da copiare sul foglio da disegno.</small>
                     </div>
                 </div>
+
                 <div class="row">
                     <div class="row">&nbsp;</div>
                 </div>
-                <div class="row">
-                    <div class="col-md-4">
+
+                <div class="row mb-3">
+                    <div class="col-sm-3">
                         <label for="scale">Scala px</label>
                     </div>
-                    <div class="col-md-1">
-                        <input type="number" id="scale" value="1" step="0.1" min="0.1">
+                    <div class="col-sm-3">
+                        <input type="number" id="scale" value="1" class="w-100">
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted">Inserire la lunghezza in px del segmento da prendere come riferimento (selected=1).</small>
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-4">
+                <div class="row" mb-3>
+                    <div class="col-sm-3">
                         <label for="scale">Reale</label>
                     </div>
-                    <div class="col-md-1">
-                        <input type="number" id="real" value="1" step="0.1" min="0.1">
+                    <div class="col-sm-3">
+                        <input type="number" id="real" value="1" class="w-100">
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted">Lunghezza (mm/cm) del segmento di rifermento sul foglio da disegno.</small>
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-4">
+                <div class="row" mb-3>
+                    <div class="col-sm-3">
                         <label for="scale">selected</label>
                     </div>
-                    <div class="col-md-1">
-                        <input type="number" id="realsel" value="" disabled>
+                    <div class="col-sm-3">
+                        <input type="number" id="realsel" value="" disabled class="w-100">
+                    </div>
+                    <div class="col-sm-6">
+                        <small class="text-muted">Lunghezza calcolata del segmento selezionato da riportare sul foglio da disegno.</small>
                     </div>
                 </div>
                 <div class="row">
@@ -118,7 +132,7 @@
                 </div>
 
             </div>
-            <div class="col-md-7">
+            <div class="col-md-6">
                 <canvas id="canvas"></canvas>
             </div>
         </div>
