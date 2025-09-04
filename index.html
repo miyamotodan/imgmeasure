@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Misuratore di Distanze</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <link rel="stylesheet" href="main.css">
+</head>
+
+<body>
+    <!-- Toolbar principale -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+        <div class="container-fluid">
+            <span class="navbar-brand">
+                <i class="fas fa-ruler"></i> Misuratore Distanze
+            </span>
+            
+            <!-- Toolbar controls -->
+            <div class="navbar-nav ms-auto d-flex flex-row gap-2">
+                <!-- Upload immagine -->
+                <div class="nav-item">
+                    <input type="file" id="upload" accept="image/*" class="d-none">
+                    <label for="upload" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-upload"></i> <span class="d-none d-md-inline">Carica</span>
+                    </label>
+                </div>
+                
+                <!-- Controlli zoom -->
+                <div class="nav-item">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-light" id="zoom-out">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <button class="btn btn-outline-light" id="zoom-in">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button class="btn btn-outline-light" id="reset">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Elimina tutti -->
+                <div class="nav-item">
+                    <button class="btn btn-outline-danger btn-sm" id="deleteall">
+                        <i class="fas fa-trash"></i> <span class="d-none d-md-inline">Pulisci</span>
+                    </button>
+                </div>
+                
+                <!-- Settings -->
+                <div class="nav-item">
+                    <button class="btn btn-outline-light btn-sm" data-bs-toggle="offcanvas" data-bs-target="#settingsPanel">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Area canvas principale -->
+    <div class="canvas-container position-relative">
+        <canvas id="canvas"></canvas>
+        
+        <!-- Overlay per feedback visivo -->
+        <div id="canvas-overlay">
+            <div id="crosshair" class="crosshair"></div>
+            <div id="touch-indicator" class="touch-indicator"></div>
+        </div>
+        
+    </div>
+
+    <!-- Pannello impostazioni (Offcanvas) -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="settingsPanel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title">Impostazioni</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            
+            <!-- Configurazione scala -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-ruler-horizontal"></i> Configurazione Scala
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label">Riferimento (px)</label>
+                            <input type="number" id="scale" value="1" class="form-control" step="0.1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Misura reale (mm)</label>
+                            <input type="number" id="real" value="1" class="form-control" step="0.1">
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="form-label">Segmento selezionato (mm)</label>
+                        <input type="text" id="realsel" disabled class="form-control">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista segmenti -->
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-list"></i> Misure Effettuate
+                    </h6>
+                    <span class="badge bg-secondary" id="segments-count">0</span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="segments-list" class="list-group list-group-flush">
+                        <div class="list-group-item text-muted text-center">
+                            Nessun segmento creato
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1060;">
+        <div id="info-toast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-info-circle text-primary me-2"></i>
+                <strong class="me-auto">Info</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toast-body">
+                <!-- Contenuto del toast -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status bar -->
+    <div class="position-fixed bottom-0 start-0 w-100 bg-dark text-light py-1 px-3" style="z-index: 1050; font-size: 0.875rem;">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <span id="zoom-level">Zoom: 100%</span>
+                <span class="mx-2">|</span>
+                <span id="current-measurement">Nessuna selezione</span>
+            </div>
+            <div>
+                <span id="segments-status">0 misure</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modali per conferme -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title">Conferma</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modal-body">
+                    Sei sicuro di voler procedere?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="confirm-action">Conferma</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="bootstrap.bundle.min.js"></script>
+    <script src="main.js"></script>
+
+</body>
+
+</html>

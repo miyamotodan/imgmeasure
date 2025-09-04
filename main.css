@@ -1,21 +1,311 @@
-#canvas {
-    border: 1px solid #777;
-    background: #eee;
-    scroll-behavior: auto;
-    margin-top: 25px;
+/* Reset e impostazioni base */
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.container {
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8f9fa;
+}
+
+/* Layout principale mobile-first */
+body {
     display: flex;
+    flex-direction: column;
 }
 
-.left-panel {
-    flex: 1;
-    text-align: center;
+/* Navbar - Toolbar principale */
+.navbar {
+    z-index: 1030;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-height: 50px;
+    padding: 0.5rem 1rem;
 }
 
-.right-panel {
+.navbar-brand {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-right: auto;
+}
+
+/* Canvas Container - occupa tutto lo spazio disponibile */
+.canvas-container {
     flex: 1;
-    text-align: center;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #f8f9fa;
+    overflow: hidden;
+    padding-bottom: 40px; /* Spazio per status bar */
+}
+
+#canvas {
+    border: 2px solid #dee2e6;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    cursor: crosshair;
+    touch-action: none;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 140px);
+}
+
+/* Controlli floating per mobile */
+.floating-controls {
+    position: absolute;
+    bottom: 50px;
+    right: 20px;
+    z-index: 100;
+}
+
+.floating-controls .btn {
+    backdrop-filter: blur(10px);
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Overlay per feedback visivo */
+#canvas-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.crosshair {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #007bff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.crosshair.active {
+    opacity: 0.8;
+}
+
+.crosshair::before,
+.crosshair::after {
+    content: '';
+    position: absolute;
+    background: #007bff;
+}
+
+.crosshair::before {
+    width: 2px;
+    height: 40px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.crosshair::after {
+    width: 40px;
+    height: 2px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.touch-indicator {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border: 3px solid #28a745;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+    transition: all 0.2s ease;
+    pointer-events: none;
+    background: rgba(40, 167, 69, 0.2);
+}
+
+.touch-indicator.active {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+/* Offcanvas personalizzato */
+.offcanvas {
+    width: 350px !important;
+}
+
+.offcanvas-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 1rem;
+}
+
+.offcanvas-body {
+    padding: 1rem;
+}
+
+/* Cards nel pannello */
+.card {
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 1rem;
+}
+
+/* Lista segmenti personalizzata */
+.list-group-item {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.list-group-item.active {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+    color: #1976d2;
+}
+
+/* Status bar */
+.position-fixed.bottom-0 {
+    background: rgba(33, 37, 41, 0.95) !important;
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#zoom-level,
+#current-measurement,
+#segments-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Toast personalizzato */
+.toast {
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 8px;
+}
+
+.toast-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Button group styling per toolbar */
+.btn-group .btn {
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-group .btn:last-child {
+    border-right: none;
+}
+
+/* Animazioni smooth */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+
+/* Responsive - Mobile */
+@media (max-width: 767px) {
+    .floating-controls {
+        display: block;
+    }
+    
+    .offcanvas {
+        width: 300px !important;
+    }
+}
+
+/* Responsive - Tablet e Desktop */
+@media (min-width: 768px) {
+    .floating-controls {
+        display: none;
+    }
+    
+    .offcanvas {
+        width: 380px !important;
+    }
+    
+    .canvas-container {
+        padding-bottom: 60px;
+    }
+    
+    #canvas {
+        max-height: calc(100vh - 160px);
+    }
+}
+
+
+/* Desktop */
+@media (min-width: 1200px) {
+    .offcanvas {
+        width: 400px !important;
+    }
+    
+    .navbar {
+        min-height: 55px;
+        padding: 0.75rem 2rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    #canvas {
+        max-height: calc(100vh - 170px);
+    }
+}
+
+
+/* Animazioni e feedback tattili */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.pulse {
+    animation: pulse 0.3s ease-in-out;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .btn:active {
+        transform: scale(0.95);
+    }
+    
+    .list-group-item:active {
+        transform: scale(0.98);
+    }
 }
 
