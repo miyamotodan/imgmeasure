@@ -9,6 +9,11 @@ const currentMeasurement = document.getElementById('current-measurement');
 const segmentsStatus = document.getElementById('segments-status');
 const segmentsCount = document.getElementById('segments-count');
 
+// Debug logging
+const DEBUG_MODE = true; // Imposta a false per nascondere il pulsante debug
+let debugLog = [];
+const MAX_DEBUG_ENTRIES = 1000; // Aumentato per vedere più storia
+
 let img = new Image();
 let points = [];
 let segments = [];
@@ -391,6 +396,9 @@ canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
 canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
 canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 
+// Pointer events per supporto pennino/stylus
+canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+
 // Mouse events per desktop pan
 canvas.addEventListener('mousedown', handleMouseDown);
 canvas.addEventListener('mousemove', handleMouseMove);
@@ -406,19 +414,24 @@ let mouseStartY = 0;
 // Variabile per prevenire eventi duplicati
 let lastClickTime = 0;
 let clickCooldown = 100; // ms
+let lastTouchEndTime = 0; // Per bloccare eventi mouse dopo touch
 
 // Funzione centralizzata per gestire tutti i click/tap
 function handlePointCreation(clientX, clientY) {
     const currentTime = Date.now();
 
+    addDebugLog('HANDLE_POINT', `points.length=${points.length}, lastClickTime=${currentTime - lastClickTime}ms ago`);
+
     // Prevenire eventi duplicati
     if (currentTime - lastClickTime < clickCooldown) {
+        addDebugLog('POINT_BLOCKED', `duplicato (${currentTime - lastClickTime}ms < ${clickCooldown}ms)`);
         return false;
     }
     lastClickTime = currentTime;
 
     // Verifica condizioni di blocco
     if (isMultiTouch || isPanning || isMousePanning) {
+        addDebugLog('POINT_BLOCKED', `gesture attiva: multiTouch=${isMultiTouch}, panning=${isPanning}, mousePan=${isMousePanning}`);
         return false;
     }
 
@@ -429,15 +442,27 @@ function handlePointCreation(clientX, clientY) {
 
     // 1. Se c'è un disegno in corso (primo punto già piazzato), PRIORITÀ AL DISEGNO
     if (points.length > 0) {
-        // Cerca snap agli endpoint esistenti
-        const snapPoint = findNearestEndpoint(coords.x, coords.y);
-        if (snapPoint) {
-            // Snap trovato! Usa il punto esatto dell'endpoint
-            addPoint(snapPoint.x, snapPoint.y);
+        addDebugLog('CLOSING_SEGMENT', `points[0]=(${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}) clickPos=(${coords.x.toFixed(1)},${coords.y.toFixed(1)})`);
+
+        // Se c'è uno snapPreviewPoint attivo, usalo direttamente
+        if (snapPreviewPoint) {
+            addDebugLog('SNAP_FOUND', `chiusura con preview snap (${snapPreviewPoint.x.toFixed(1)}, ${snapPreviewPoint.y.toFixed(1)})`);
+            addPoint(snapPreviewPoint.x, snapPreviewPoint.y);
             showToast('Punto agganciato all\'endpoint', 'success');
+            snapPreviewPoint = null; // Reset
         } else {
-            // Nessuno snap, usa coordinate normali
-            addPoint(coords.x, coords.y);
+            // Nessuno snap nel preview, prova a cercarlo
+            const snapPoint = findNearestEndpoint(coords.x, coords.y);
+            if (snapPoint) {
+                // Snap trovato! Usa il punto esatto dell'endpoint
+                addDebugLog('SNAP_FOUND', `chiusura segmento su endpoint (${snapPoint.x.toFixed(1)}, ${snapPoint.y.toFixed(1)})`);
+                addPoint(snapPoint.x, snapPoint.y);
+                showToast('Punto agganciato all\'endpoint', 'success');
+            } else {
+                // Nessuno snap, usa coordinate normali
+                addDebugLog('POINT_ADDED', `normale (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)})`);
+                addPoint(coords.x, coords.y);
+            }
         }
         return true;
     }
@@ -446,6 +471,7 @@ function handlePointCreation(clientX, clientY) {
     const snapPoint = findNearestEndpoint(coords.x, coords.y);
     if (snapPoint) {
         // Inizia un nuovo disegno da un endpoint esistente
+        addDebugLog('SNAP_FOUND', `inizio segmento da endpoint (${snapPoint.x.toFixed(1)}, ${snapPoint.y.toFixed(1)})`);
         addPoint(snapPoint.x, snapPoint.y);
         showToast('Punto agganciato all\'endpoint', 'success');
         return true;
@@ -453,12 +479,14 @@ function handlePointCreation(clientX, clientY) {
 
     // 3. Nessuno snap: prova a selezionare un segmento esistente
     if (selectSegment(coords.x, coords.y)) {
+        addDebugLog('SEGMENT_SELECTED', 'segmento selezionato');
         drawCanvas();
         updateSegmentsList();
         return true; // Evento gestito
     }
 
     // 4. Niente di tutto ciò: crea nuovo punto
+    addDebugLog('POINT_ADDED', `nuovo (${coords.x.toFixed(1)}, ${coords.y.toFixed(1)})`);
     addPoint(coords.x, coords.y);
     return true; // Evento gestito
 }
@@ -470,6 +498,23 @@ function handleMouseDown(event) {
         mouseStartX = event.clientX;
         mouseStartY = event.clientY;
         canvas.style.cursor = 'move';
+    }
+}
+
+function handlePointerMove(event) {
+    // Gestisce pennino e touch stylus
+    if (event.pointerType === 'pen' || event.pointerType === 'touch') {
+        if (showPreview && points.length === 1 && !isPanning && !isMousePanning) {
+            event.preventDefault();
+            const coords = getCanvasCoordinates(event.clientX, event.clientY);
+            previewPoint = coords;
+
+            // Cerca snap agli endpoint
+            const snapPoint = findNearestEndpoint(coords.x, coords.y);
+            snapPreviewPoint = snapPoint;
+
+            drawCanvas();
+        }
     }
 }
 
@@ -519,6 +564,19 @@ function handleMouseUp() {
 
 function handleCanvasClick(event) {
     event.preventDefault();
+
+    const currentTime = Date.now();
+    const timeSinceTouchEnd = currentTime - lastTouchEndTime;
+
+    addDebugLog('CLICK', `timeSinceTouchEnd=${timeSinceTouchEnd}ms, points.length=${points.length}`);
+
+    // Su tablet con pennino, previeni eventi mouse duplicati dopo touch
+    // Se è passato meno di 500ms dall'ultimo touchEnd, ignora il click
+    if (timeSinceTouchEnd < 500) {
+        addDebugLog('CLICK_IGNORED', `troppo vicino a touchEnd (${timeSinceTouchEnd}ms)`);
+        return;
+    }
+
     handlePointCreation(event.clientX, event.clientY);
 }
 
@@ -560,12 +618,19 @@ function handleTouchStart(event) {
 function handleTouchMove(event) {
     event.preventDefault();
 
+    if (DEBUG_MODE && points.length > 0) {
+        addDebugLog('TOUCH_MOVE', `touches=${event.touches.length}, points.length=${points.length}`);
+    }
+
     if (event.touches.length === 1 && !isMultiTouch) {
         const touch = event.touches[0];
         const deltaX = touch.clientX - panStartX;
         const deltaY = touch.clientY - panStartY;
 
-        if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+        // SOGLIA PIÙ ALTA: Se c'è un disegno in corso, richiedi movimento significativo per attivare pan
+        const panThreshold = points.length > 0 ? 15 : 5;
+
+        if (Math.abs(deltaX) > panThreshold || Math.abs(deltaY) > panThreshold) {
             // Single touch pan
             isPanning = true;
             panX += deltaX / zoomFactor;
@@ -599,19 +664,27 @@ function handleTouchMove(event) {
 
 function handleTouchEnd(event) {
     event.preventDefault();
-    
+
+    addDebugLog('TOUCH_END', `touches.length=${event.touches.length}, isPanning=${isPanning}, isMultiTouch=${isMultiTouch}`);
+
     if (event.touches.length === 0) {
         // All fingers lifted
         if (!isPanning && !isMultiTouch && touches.length === 1) {
             // Single tap without pan
             const touch = touches[0];
+            addDebugLog('TOUCH_TAP', `calling handlePointCreation, points.length=${points.length}`);
             handlePointCreation(touch.clientX, touch.clientY);
+        } else {
+            addDebugLog('TOUCH_END_NO_ACTION', `isPanning=${isPanning}, isMultiTouch=${isMultiTouch}, touches.length=${touches.length}`);
         }
-        
+
         isPanning = false;
         isMultiTouch = false;
+
+        // Aggiorna timestamp per bloccare eventi mouse successivi
+        lastTouchEndTime = Date.now();
     }
-    
+
     touches = Array.from(event.touches);
 }
 
@@ -674,6 +747,7 @@ function addPoint(x, y) {
     }
 
     points.push({ x, y });
+    addDebugLog('ADD_POINT', `aggiunto punto ${points.length}: (${x.toFixed(1)}, ${y.toFixed(1)}) - points[0]=${points[0] ? `(${points[0].x.toFixed(1)},${points[0].y.toFixed(1)})` : 'null'}`);
 
     if (points.length === 2) {
         createSegment();
@@ -706,6 +780,7 @@ function createSegment() {
 
         segments.push(segment);
         selectedSegment = segment;
+        addDebugLog('SEGMENT_CREATED', `id=${segment.id}, start=(${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}), end=(${points[1].x.toFixed(1)},${points[1].y.toFixed(1)})`);
         points = [];
         previewPoint = null; // Reset preview per evitare bug
 
@@ -782,22 +857,57 @@ function findNearestEndpoint(x, y) {
     let nearestPoint = null;
     let minDistance = SNAP_DISTANCE;
 
+    // Log ridotto: solo quando c'è un disegno in corso
+    // if (DEBUG_MODE && points.length > 0) {
+    //     const segInfo = segments.map((s, i) => `[${i}]:(${s.start.x.toFixed(0)},${s.start.y.toFixed(0)})->(${s.end.x.toFixed(0)},${s.end.y.toFixed(0)})`).join(' ');
+    //     addDebugLog('SNAP_CHECK_START', `segments.length=${segments.length} ${segInfo}, checking pos=(${x.toFixed(1)},${y.toFixed(1)}), hasFirstPoint=${points.length > 0}`);
+    // }
+
     // Cerca tra tutti gli endpoint dei segmenti esistenti
-    segments.forEach(segment => {
+    segments.forEach((segment, idx) => {
         // Controlla punto iniziale
         const distToStart = getPixelDistance({ x, y }, segment.start);
-        if (distToStart < minDistance) {
+
+        // ESCLUDI il punto che corrisponde al primo punto del disegno corrente
+        const isFirstPoint = points.length > 0 &&
+                            Math.abs(points[0].x - segment.start.x) < 0.1 &&
+                            Math.abs(points[0].y - segment.start.y) < 0.1;
+
+        // Log solo se snap trovato E c'è un disegno in corso
+        if (DEBUG_MODE && points.length > 0 && distToStart <= SNAP_DISTANCE) {
+            const dx = Math.abs(points[0].x - segment.start.x);
+            const dy = Math.abs(points[0].y - segment.start.y);
+            addDebugLog('SNAP_DIST', `seg[${idx}].start=(${segment.start.x.toFixed(1)},${segment.start.y.toFixed(1)}) pt0=(${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}) dx=${dx.toFixed(3)} dy=${dy.toFixed(3)} isFirstPt=${isFirstPoint}`);
+        }
+
+        if (!isFirstPoint && distToStart <= minDistance) {
             minDistance = distToStart;
             nearestPoint = { ...segment.start };
         }
 
         // Controlla punto finale
         const distToEnd = getPixelDistance({ x, y }, segment.end);
-        if (distToEnd < minDistance) {
+
+        // ESCLUDI il punto che corrisponde al primo punto del disegno corrente
+        const isFirstPointEnd = points.length > 0 &&
+                                Math.abs(points[0].x - segment.end.x) < 0.1 &&
+                                Math.abs(points[0].y - segment.end.y) < 0.1;
+
+        // Log solo se snap trovato E c'è un disegno in corso
+        if (DEBUG_MODE && points.length > 0 && distToEnd <= SNAP_DISTANCE) {
+            addDebugLog('SNAP_DIST_END', `seg[${idx}].end=(${segment.end.x.toFixed(1)},${segment.end.y.toFixed(1)}) pt0=(${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}) isFirstPt=${isFirstPointEnd}`);
+        }
+
+        if (!isFirstPointEnd && distToEnd <= minDistance) {
             minDistance = distToEnd;
             nearestPoint = { ...segment.end };
         }
     });
+
+    // Log ridotto: solo quando trova snap
+    if (DEBUG_MODE && nearestPoint && points.length > 0) {
+        addDebugLog('SNAP_FOUND_PREVIEW', `snap a (${nearestPoint.x.toFixed(1)},${nearestPoint.y.toFixed(1)})`);
+    }
 
     return nearestPoint;
 }
@@ -829,7 +939,11 @@ function selectSegment(x, y) {
     // Se è stato trovato un segmento e non è quello già selezionato
     if (newSelectedSegment && newSelectedSegment !== selectedSegment) {
         selectedSegment = newSelectedSegment;
-        points = []; // Reset punti temporanei
+        // IMPORTANTE: NON resettare points[] se c'è un disegno in corso!
+        // Altrimenti col pennino il touchStart del secondo click cancella il primo punto
+        if (points.length === 0) {
+            points = []; // Reset punti temporanei solo se non stiamo disegnando
+        }
         
         // NUOVO: Quando si seleziona un segmento, imposta automaticamente il riferimento in pixel
         const pixelDistance = getPixelDistance(selectedSegment.start, selectedSegment.end);
@@ -1021,11 +1135,76 @@ function showTouchFeedback(x, y) {
     }, 200);
 }
 
+function addDebugLog(eventType, details) {
+    if (!DEBUG_MODE) return; // Non loggare se debug è disabilitato
+
+    try {
+        // Timestamp semplice compatibile con tutti i browser
+        const now = new Date();
+        const timestamp = now.toTimeString().split(' ')[0] + '.' + now.getMilliseconds().toString().padStart(3, '0');
+
+        const logEntry = {
+            time: timestamp,
+            event: eventType,
+            details: details
+        };
+
+        debugLog.push(logEntry);
+
+        // Mantieni solo le ultime MAX_DEBUG_ENTRIES voci
+        if (debugLog.length > MAX_DEBUG_ENTRIES) {
+            debugLog.shift();
+        }
+
+        updateDebugDisplay();
+    } catch (error) {
+        // Fallback se c'è un errore
+        console.error('Debug log error:', error);
+        debugLog.push({
+            time: Date.now(),
+            event: eventType,
+            details: details
+        });
+    }
+}
+
+function updateDebugDisplay() {
+    const debugLogElement = document.getElementById('debug-log');
+    if (!debugLogElement) return;
+
+    if (debugLog.length === 0) {
+        debugLogElement.innerHTML = '<div class="text-muted">Log eventi pronto...</div>';
+        return;
+    }
+
+    const html = debugLog.map(entry => {
+        const colorClass =
+            entry.event.includes('CLICK') ? 'text-primary' :
+            entry.event.includes('TOUCH') ? 'text-success' :
+            entry.event.includes('SNAP') ? 'text-warning' :
+            entry.event.includes('SEGMENT') ? 'text-info' :
+            entry.event.includes('IGNORED') ? 'text-danger' :
+            'text-secondary';
+
+        return `<div class="${colorClass}">
+            <strong>[${entry.time}]</strong> ${entry.event}: ${entry.details}
+        </div>`;
+    }).reverse().join('');
+
+    debugLogElement.innerHTML = html;
+    debugLogElement.scrollTop = 0;
+}
+
+function clearDebugLog() {
+    debugLog = [];
+    updateDebugDisplay();
+}
+
 function showToast(message, type = 'info') {
     const toast = document.getElementById('info-toast');
     const toastBody = document.getElementById('toast-body');
     const toastHeader = toast.querySelector('.toast-header i');
-    
+
     // Set icon and color based on type
     toastHeader.className = `fas me-2 ${
         type === 'success' ? 'fa-check-circle text-success' :
@@ -1033,9 +1212,9 @@ function showToast(message, type = 'info') {
         type === 'error' ? 'fa-times-circle text-danger' :
         'fa-info-circle text-primary'
     }`;
-    
+
     toastBody.textContent = message;
-    
+
     const bsToast = new bootstrap.Toast(toast, {
         delay: 1000
     });
@@ -1296,9 +1475,24 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 
+    // Debug log clear button
+    const clearDebugBtn = document.getElementById('clear-debug-log');
+    if (clearDebugBtn) {
+        clearDebugBtn.addEventListener('click', clearDebugLog);
+    }
+
+    // Mostra/nascondi pulsante debug in base a DEBUG_MODE
+    const debugButton = document.querySelector('[data-bs-target="#debugModal"]');
+    if (debugButton) {
+        debugButton.style.display = DEBUG_MODE ? '' : 'none';
+    }
+
     // Initialize
     resizeCanvas();
     updateSegmentsList();
     showToast('Applicazione pronta. Carica un\'immagine per iniziare.', 'info');
+    if (DEBUG_MODE) {
+        addDebugLog('APP_START', 'Applicazione inizializzata');
+    }
 });
 
