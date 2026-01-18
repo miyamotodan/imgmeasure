@@ -264,11 +264,13 @@ body {
     border: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     border-radius: 8px;
+    
 }
 
 .toast-header {
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
+    background: var(--navbar-bg);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: var(--navbar-text);
 }
 
 /* Help Modal styling */
