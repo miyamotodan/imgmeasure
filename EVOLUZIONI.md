@@ -222,7 +222,7 @@ Su tablet (dispositivo comune per disegnatori), alcune operazioni sono macchinos
 - ✅ **Tap prolungato**: menu contestuale con azioni rapide
 - ✅ **Swipe 3 dita laterale**: undo/redo rapido
 - ✅ **Modalità "Disegno rapido"**: tap continui creano polilinea automaticamente
-- ✅ **Shake device**: reset vista (mobile)
+- ✅ **Shake device**: reset zoom (mobile)
 - ✅ **Voice commands**: "misura questo", "crea griglia 8x8" (sperimentale)
 - ✅ **Pressure sensitivity**: su dispositivi con stylus, spessore segmento varia
 
